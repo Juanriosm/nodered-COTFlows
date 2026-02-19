@@ -1,0 +1,170 @@
+[
+    {
+        "id": "35c543acb3ca6985",
+        "type": "inject",
+        "z": "2f291f150597730b",
+        "name": "I",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 50,
+        "y": 4740,
+        "wires": [
+            [
+                "e120c3ec587d0118",
+                "1bc116e8c2d4c145",
+                "1f787d591cfade90",
+                "65bd362e9cb7ec09",
+                "d307c258c3557bfa",
+                "47239e2d6d809e22",
+                "5c01e66d5f2f3a6f",
+                "042b5bb9d8b57cf9",
+                "c579c36ad20d8d3a",
+                "cb289a30b36ca309",
+                "02bda815a651a791",
+                "3c1ad553c5f41233",
+                "05a46a52d7be2ca7",
+                "d591a1d78a60845d",
+                "a1074e41a9d6b633",
+                "8d890c347173abd4"
+            ]
+        ]
+    },
+    {
+        "id": "39122dd34b3a0862",
+        "type": "OpcUa-Client",
+        "z": "2f291f150597730b",
+        "endpoint": "a294c9d281ac6663",
+        "action": "subscribe",
+        "deadbandtype": "a",
+        "deadbandvalue": 1,
+        "time": 1,
+        "timeUnit": "s",
+        "certificate": "n",
+        "localfile": "",
+        "localkeyfile": "",
+        "securitymode": "None",
+        "securitypolicy": "None",
+        "useTransport": false,
+        "maxChunkCount": 1,
+        "maxMessageSize": 8192,
+        "receiveBufferSize": 8192,
+        "sendBufferSize": 8192,
+        "name": "OPCUA_1_7",
+        "x": 370,
+        "y": 4800,
+        "wires": [
+            [
+                "5cc343d13c305063",
+                "f6f3b4dbfc66ee84",
+                "f1joinexample"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "79565d98eddd0e58",
+        "type": "join",
+        "z": "2f291f150597730b",
+        "name": "",
+        "mode": "custom",
+        "build": "object",
+        "property": "payload",
+        "propertyType": "msg",
+        "key": "topic",
+        "joiner": "\\n",
+        "joinerType": "str",
+        "useparts": true,
+        "accumulate": true,
+        "timeout": "",
+        "count": "16",
+        "reduceRight": false,
+        "reduceExp": "",
+        "reduceInit": "",
+        "reduceInitType": "",
+        "reduceFixup": "",
+        "x": 1330,
+        "y": 5800,
+        "wires": [
+            [
+                "ad4d0bdaa253307e"
+            ]
+        ]
+    },
+    {
+        "id": "7bdefcb4799965ef",
+        "type": "join",
+        "z": "2f291f150597730b",
+        "name": "",
+        "mode": "custom",
+        "build": "object",
+        "property": "payload",
+        "propertyType": "msg",
+        "key": "topic",
+        "joiner": "\\n",
+        "joinerType": "str",
+        "useparts": true,
+        "accumulate": true,
+        "timeout": "",
+        "count": "2",
+        "reduceRight": false,
+        "reduceExp": "",
+        "reduceInit": "",
+        "reduceInitType": "",
+        "reduceFixup": "",
+        "x": 1350,
+        "y": 5740,
+        "wires": [
+            [
+                "b8eef646e82f6a74"
+            ]
+        ]
+    },
+    {
+        "id": "c0fdafc8052de090",
+        "type": "function",
+        "z": "2f291f150597730b",
+        "name": "Buscar registro",
+        "func": "// Evitar envíos duplicados mientras hay un registro en tránsito\nconst lock = flow.get(\"envioRegistro17EnProceso\");\nif (lock) {\n    const lockAgeMs = Date.now() - (lock.ts || 0);\n    if (lockAgeMs < 30000) {\n        return null;\n    }\n    // Liberar locks antiguos para permitir reintentos\n    flow.set(\"envioRegistro17EnProceso\", null);\n}\n\n// Obtener la variable global \"datos17\"\nvar datos17 = global.get(\"datos17\");\n\n// Verificar si la variable global tiene el formato esperado\nif (datos17 && datos17.dataItems && Array.isArray(datos17.dataItems)) {\n\n    // Recorrer los elementos de dataItems\n    for (let item of datos17.dataItems) {\n        if (item.data && Array.isArray(item.data)) {\n\n            // Recorrer los datos dentro del array \"data\"\n            for (let subItem of item.data) {\n                if (subItem.data && Array.isArray(subItem.data)) {\n\n                    // Recorrer los registros de datos buscando el primero que cumpla con los criterios\n                    for (let registro of subItem.data) {\n                        if (registro.estado === \"finalizado\" && registro.procesado === \"pendiente\") {\n\n                            // Crear payload limpio para la solicitud HTTP\n                            const { procesado, ...salida } = registro;\n\n                            // Bloquear nuevos envíos hasta recibir respuesta del request HTTP\n                            const clave = `${salida.maquina}|${salida.timeRangeInicio}|${salida.timeRangeFinal}`;\n                            flow.set(\"envioRegistro17EnProceso\", { clave, ts: Date.now() });\n\n                            // Asignarlo a msg.payload para enviarlo en la solicitud HTTP\n                            msg.payload = salida;\n                            msg.previo = { payload: salida, clave };\n\n                            // Salir del ciclo después de encontrar el primer registro\n                            return msg;\n                        }\n                    }\n                }\n            }\n        }\n    }\n}\n\n// Si no se encuentra ningún registro que cumpla con los criterios, no enviar mensaje\nreturn null;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1620,
+        "y": 5800,
+        "wires": [
+            [
+                "98a849cf2d9d4a43"
+            ]
+        ]
+    },
+    {
+        "id": "6021dbfeef91b1b7",
+        "type": "function",
+        "z": "2f291f150597730b",
+        "name": "Verificar y actualizar",
+        "func": "// Obtener el mensaje devuelto por el servidor\nvar payload = msg.payload;\nvar lock = flow.get(\"envioRegistro17EnProceso\");\n\nif (payload.message === \"ok\") {\n    // Obtener la variable global \"datos17\"\n    var datos17 = global.get(\"datos17\");\n\n    // Verificar si la variable global tiene el formato esperado\n    if (datos17 && datos17.dataItems && Array.isArray(datos17.dataItems)) {\n\n        // Recorrer los elementos de dataItems\n        for (let item of datos17.dataItems) {\n            if (item.data && Array.isArray(item.data)) {\n\n                // Recorrer los datos dentro del array \"data\"\n                for (let subItem of item.data) {\n                    if (subItem.data && Array.isArray(subItem.data)) {\n\n                        // Encontrar el registro enviado (lo que estaba en msg.previo.payload)\n                        let index = subItem.data.findIndex(registro =>\n                            registro.maquina === msg.previo.payload.maquina &&\n                            registro.timeRangeInicio === msg.previo.payload.timeRangeInicio &&\n                            registro.timeRangeFinal === msg.previo.payload.timeRangeFinal\n                        );\n\n                        // Si se encuentra el registro, eliminarlo\n                        if (index !== -1) {\n                            subItem.data.splice(index, 1);\n\n                            // Guardar la variable global actualizada\n                            global.set(\"datos17\", datos17);\n\n                            // Liberar bloqueo solo tras actualización exitosa\n                            if (lock && msg.previo && msg.previo.clave && lock.clave === msg.previo.clave) {\n                                flow.set(\"envioRegistro17EnProceso\", null);\n                            }\n\n                            // Enviar un mensaje indicando que la variable global ha sido actualizada\n                            node.send({ payload: \"actualizado\" });\n                            return;\n                        }\n                    }\n                }\n            }\n        }\n    }\n\n    // Si no se encuentra el registro, enviar un mensaje de error\n    node.send({ payload: \"error: registro no encontrado\" });\n} else {\n    // Si la respuesta del servidor no es \"ok\", enviar un mensaje de error\n    node.send({ payload: \"error: respuesta del servidor no es ok\" });\n}",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1980,
+        "y": 5800,
+        "wires": [
+            []
+        ]
+    }
+]
